@@ -9,6 +9,8 @@ describe("clawvault", () => {
       "clawvault_search",
       "clawvault_recent",
       "clawvault_consolidate",
+      "clawvault_relate",
+      "clawvault_links",
       "clawvault_stats",
     ]);
   });

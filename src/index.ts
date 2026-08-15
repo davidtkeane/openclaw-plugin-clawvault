@@ -14,6 +14,8 @@ import { mkdirSync } from "node:fs";
  *   clawvault_recent      — timeline of recent memories
  *   clawvault_stats       — totals and breakdowns
  *   clawvault_consolidate — gather related memories to synthesize into one insight
+ *   clawvault_relate      — create a typed link between two memories (graph)
+ *   clawvault_links       — show a memory's connections (graph traversal)
  *
  * Storage is a plain SQLite database (Node's built-in node:sqlite — no native
  * build step) with an FTS5 full-text index for fast, relevance-ranked recall.
@@ -79,6 +81,22 @@ type MemoryRow = {
   source: string | null;
   verified: number | null;
   superseded: number | null;
+};
+
+type MemoryPreview = {
+  id: number;
+  memory_type: string | null;
+  importance: number | null;
+  verified: number | null;
+  preview: string;
+};
+
+type LinkRow = {
+  rel: string;
+  id: number;
+  memory_type: string | null;
+  importance: number | null;
+  preview: string;
 };
 
 // --- The base layer of memory: who Ranger is, the rules, the mission. ---
@@ -204,6 +222,19 @@ function initSchema(db: DatabaseSync): void {
   if (!cols.includes("source")) db.exec("ALTER TABLE memories ADD COLUMN source TEXT");
   if (!cols.includes("verified")) db.exec("ALTER TABLE memories ADD COLUMN verified INTEGER DEFAULT 0");
   if (!cols.includes("superseded")) db.exec("ALTER TABLE memories ADD COLUMN superseded INTEGER DEFAULT 0");
+  // v0.5: a graph layer — typed links between memories.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS relations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_id INTEGER NOT NULL,
+      rel TEXT NOT NULL,
+      to_id INTEGER NOT NULL,
+      created TEXT NOT NULL,
+      UNIQUE(from_id, rel, to_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rel_from ON relations(from_id);
+    CREATE INDEX IF NOT EXISTS idx_rel_to ON relations(to_id);
+  `);
 }
 
 function seedIdentity(db: DatabaseSync, machine: string): void {
@@ -293,7 +324,7 @@ export default defineToolPlugin({
   id: "clawvault",
   name: "ClawVault",
   description:
-    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, topic consolidation, and a verified-claim guard that keeps unproven facts out of trusted memory.",
+    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, topic consolidation, linked memories (a knowledge graph), and a verified-claim guard that keeps unproven facts out of trusted memory.",
   configSchema: ConfigSchema,
   tools: (tool) => [
     tool({
@@ -398,18 +429,23 @@ export default defineToolPlugin({
             verified,
           );
 
-        // Soft-retire any memories this one supersedes.
+        // Soft-retire any memories this one supersedes, and record the link in the graph.
+        const newId = Number(res.lastInsertRowid);
         let supersededCount = 0;
         if (params.supersedes && params.supersedes.length) {
           const upd = db.prepare("UPDATE memories SET superseded = 1 WHERE id = ? AND superseded = 0");
+          const rel = db.prepare(
+            "INSERT OR IGNORE INTO relations (from_id, rel, to_id, created) VALUES (?, 'supersedes', ?, ?)",
+          );
           for (const sid of params.supersedes) {
             supersededCount += Number(upd.run(sid).changes);
+            rel.run(newId, sid, now);
           }
         }
 
         return {
           saved: true,
-          id: Number(res.lastInsertRowid),
+          id: newId,
           timestamp: now,
           importance,
           source_machine: machine,
@@ -534,6 +570,81 @@ export default defineToolPlugin({
       },
     }),
     tool({
+      name: "clawvault_relate",
+      label: "ClawVault Relate",
+      description:
+        'Create a typed link between two existing memories (a knowledge graph). Use to connect related facts, decisions, causes, or dependencies — e.g. relate(30, "caused_by", 12) or relate(5, "relates_to", 21).',
+      parameters: Type.Object({
+        from_id: Type.Number({ description: "Source memory id." }),
+        rel: Type.String({
+          description: "Relationship type, e.g. relates_to, supersedes, caused_by, depends_on, part_of, contradicts.",
+        }),
+        to_id: Type.Number({ description: "Target memory id." }),
+      }),
+      execute: (params, config: Config) => {
+        const db = getDb(config);
+        if (params.from_id === params.to_id) return { linked: false, reason: "A memory cannot link to itself." };
+        const exists = (id: number) => db.prepare("SELECT 1 AS ok FROM memories WHERE id = ?").get(id) != null;
+        if (!exists(params.from_id)) return { linked: false, reason: `from_id ${params.from_id} does not exist.` };
+        if (!exists(params.to_id)) return { linked: false, reason: `to_id ${params.to_id} does not exist.` };
+        const rel = params.rel.trim() || "relates_to";
+        const res = db
+          .prepare("INSERT OR IGNORE INTO relations (from_id, rel, to_id, created) VALUES (?, ?, ?, ?)")
+          .run(params.from_id, rel, params.to_id, new Date().toISOString());
+        return { linked: true, from_id: params.from_id, rel, to_id: params.to_id, isNew: Number(res.changes) > 0 };
+      },
+    }),
+    tool({
+      name: "clawvault_links",
+      label: "ClawVault Links",
+      description:
+        "Show a memory's connections in the graph: its outgoing and incoming typed links, with the linked memories. Use to explore how knowledge connects.",
+      parameters: Type.Object({
+        id: Type.Number({ description: "The memory id whose links to show." }),
+        depth: Type.Optional(
+          Type.Number({ description: "Traversal depth: 1 (direct links, default) or 2 (neighbours of neighbours)." }),
+        ),
+      }),
+      execute: (params, config: Config) => {
+        const db = getDb(config);
+        const center = db
+          .prepare(
+            "SELECT id, memory_type, importance, verified, substr(content,1,80) AS preview FROM memories WHERE id = ?",
+          )
+          .get(params.id) as unknown as MemoryPreview | undefined;
+        if (!center) return { id: params.id, found: false, reason: "No memory with that id." };
+        const depth = params.depth === 2 ? 2 : 1;
+        const linksOf = (id: number) => {
+          const outgoing = db
+            .prepare(
+              "SELECT r.rel, r.to_id AS id, m.memory_type, m.importance, substr(m.content,1,70) AS preview " +
+                "FROM relations r JOIN memories m ON m.id = r.to_id WHERE r.from_id = ? ORDER BY r.id",
+            )
+            .all(id) as unknown as LinkRow[];
+          const incoming = db
+            .prepare(
+              "SELECT r.rel, r.from_id AS id, m.memory_type, m.importance, substr(m.content,1,70) AS preview " +
+                "FROM relations r JOIN memories m ON m.id = r.from_id WHERE r.to_id = ? ORDER BY r.id",
+            )
+            .all(id) as unknown as LinkRow[];
+          return { outgoing, incoming };
+        };
+        const direct = linksOf(params.id);
+        const result: Record<string, unknown> = {
+          id: params.id,
+          found: true,
+          memory: center,
+          outgoing: direct.outgoing,
+          incoming: direct.incoming,
+        };
+        if (depth === 2) {
+          const neighbourIds = Array.from(new Set([...direct.outgoing, ...direct.incoming].map((l) => l.id)));
+          result.secondHop = neighbourIds.map((nid) => ({ id: nid, ...linksOf(nid) }));
+        }
+        return result;
+      },
+    }),
+    tool({
       name: "clawvault_stats",
       label: "ClawVault Stats",
       description:
@@ -548,6 +659,7 @@ export default defineToolPlugin({
         const supersededCount = (
           db.prepare("SELECT COUNT(*) AS n FROM memories WHERE superseded = 1").get() as { n: number }
         ).n;
+        const relationsCount = (db.prepare("SELECT COUNT(*) AS n FROM relations").get() as { n: number }).n;
         const byType = db
           .prepare(
             "SELECT COALESCE(memory_type,'(none)') AS memory_type, COUNT(*) AS n FROM memories WHERE superseded = 0 GROUP BY memory_type ORDER BY n DESC",
@@ -569,6 +681,7 @@ export default defineToolPlugin({
           active: total - supersededCount,
           verified: verifiedCount,
           superseded: supersededCount,
+          relations: relationsCount,
           byType,
           byMachine,
           topImportance,
