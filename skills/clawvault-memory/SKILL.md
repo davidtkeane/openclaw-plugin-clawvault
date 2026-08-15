@@ -1,6 +1,6 @@
 ---
 name: clawvault-memory
-description: Durable-memory workflow for the ClawVault plugin. Activate whenever the user asks you to remember, recall, "what did we…", or when a fact is worth keeping across sessions. Enforces search-before-answer and verify-before-save so memory holds checked facts, not guesses.
+description: Durable-memory + self-improving workflow for the ClawVault plugin. Activate whenever the user asks you to remember or recall, when a fact is worth keeping, OR when something fails, the user corrects you, or you find a better approach. Captures lessons, detects recurring patterns, promotes proven ones, and enforces search-before-answer and verify-before-save so memory holds checked facts, not guesses.
 metadata: { "openclaw": { "emoji": "🐘", "homepage": "https://github.com/davidtkeane/openclaw-plugin-clawvault" } }
 ---
 
@@ -20,6 +20,10 @@ a made-up "fact" into long-term memory.
 - The user asks **"what did we…"**, "what do you know about…", "did we already…"
 - You learn a durable fact, decision, or preference worth keeping across sessions
 - You're about to state a fact you're not certain of
+- **A command, tool, or API fails** — capture the error + the fix
+- **The user corrects you** ("No, that's wrong…", "Actually…") or rejects your work
+- **You discover a better approach**, or a requested capability doesn't exist
+- **Before a major task** — review relevant lessons first (`clawvault_search`)
 
 ## The workflow
 
@@ -64,6 +68,37 @@ clawvault_consolidate({ topic: "clawvault deployment" })
 // …synthesize the returned cluster, then:
 clawvault_save({ content: "<synthesis>", memory_type: "insight", verified: true, supersedes: [9,10,11] })
 ```
+
+## Learn from your mistakes (the self-improving loop)
+
+When something fails or you're corrected, don't just fix it — **remember the lesson** so it never happens twice.
+
+**1. Capture the lesson.** Save it with a matching `memory_type` and a stable **pattern-key** as the first keyword (so the same problem clusters even when worded differently):
+
+```
+clawvault_save({
+  content: "npm install failed: node not on PATH in a non-login shell. Fix: run via `zsh -lc`.",
+  memory_type: "lesson",                    // or "error" | "correction"
+  keywords: "shell.node-not-found,npm,path", // first keyword = stable pattern-key
+  importance: 12,
+  source: "observed on this machine",
+  verified: true
+})
+```
+
+Use `memory_type`: **`error`** (something broke), **`correction`** (the user fixed you), **`lesson`** (a better way found).
+
+**2. Detect recurrence → promote.** Before saving, `clawvault_search` the pattern-key. If the lesson already exists, it recurred — **promote it**: save a sharpened version with higher `importance` and `supersedes:[oldId]`. Recurring pain earns higher importance.
+
+**3. Graduate proven lessons to always-on memory.** When a lesson keeps mattering, also write it into the workspace `AGENTS.md` / `TOOLS.md` so it's loaded *every* session — not just searchable on demand.
+
+**4. Reflect after real work.** When a task completes, log a short reflection:
+
+```
+clawvault_save({ content: "CONTEXT: <task>. REFLECTION: <what happened>. LESSON: <do differently next time>.", memory_type: "reflection", importance: 8, verified: true })
+```
+
+**5. Review before you start.** Before a major or repeated task, `clawvault_search` prior lessons/errors on that topic so you don't repeat a known mistake.
 
 ## The rules (verify-before-save)
 
