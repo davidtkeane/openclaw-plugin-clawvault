@@ -1,75 +1,137 @@
-# ClawVault 🐘
+<div align="center">
 
-Persistent **SQLite + FTS5** memory for [OpenClaw](https://openclaw.ai). Give your
-agent a real, durable memory it can write to and recall from across sessions —
-backed by a plain SQLite database with a full-text search index, so there is no
-fragile embedding index to fall out of sync.
+# 🐘 ClawVault
 
-## Why
+**Persistent SQLite + FTS5 memory for [OpenClaw](https://openclaw.ai) — with verify-before-save built in.**
 
-OpenClaw's built-in memory relies on an embedding index that can drift. ClawVault
-uses SQLite's battle-tested **FTS5** full-text engine instead: fast, relevance-ranked
-(BM25) recall with nothing to rebuild. The store is a single file you can open with
-any SQLite tool.
+Give your agent a real, durable memory it can write to and recall from across sessions.
+No fragile embedding index. No native build step. Just a single SQLite file with fast,
+relevance-ranked full-text search.
 
-> **Backing up:** the DB runs in WAL mode, so the latest writes live in a `-wal`
-> sidecar — a plain `cp` of the `.db` alone can miss them. Use a consistent copy:
-> `sqlite3 ~/.openclaw/memory/clawvault.db ".backup /path/to/backup.db"`.
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.5.17-6e56cf.svg)
+![Node](https://img.shields.io/badge/Node-22.22%2B%20%7C%2024%20%7C%2025%20%7C%2026-339933.svg)
+![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5-003b57.svg)
 
-## Tools
+</div>
+
+---
+
+## Why ClawVault?
+
+Most agent memory relies on an **embedding index** — which can silently drift, corrupt, or fall
+out of sync (and then "memory search is disabled" right when you need it). ClawVault takes the
+boring, bulletproof path: SQLite's battle-tested **FTS5** full-text engine.
+
+- 🔍 **Fast, ranked recall** — BM25 relevance scoring, not a linear scan.
+- 🧱 **Nothing to rebuild** — no vectors, no re-embedding, no index that can mismatch.
+- 📦 **One portable file** — open it with any SQLite tool, inspect it, ship it.
+- ⚙️ **Zero native build** — uses Node's built-in `node:sqlite`. No `node-gyp`, no headaches.
+- 🛡️ **Verify-before-save** — every memory can record **where it came from** and **whether it was checked**.
+
+## ✨ The distinctive bit: verify-before-save
+
+Any model — small or large — can produce confident text that's simply **wrong**. A memory that
+stores a made-up "fact" is *worse* than no memory, because it launders a guess into "something we
+know." ClawVault makes honesty part of the schema:
+
+- `clawvault_save` takes a **`source`** (URL, command, file, person) and a **`verified`** boolean.
+- Verified facts are facts. Unverified ones get `memory_type: "unverified"` — a question to confirm,
+  not a truth to trust.
+- The rule the agent follows: **search before you answer, verify before you save, always record the source.**
+
+## 🛠️ Tools
 
 | Tool | Purpose |
 | --- | --- |
-| `clawvault_save` | Store a memory (content, type, importance, keywords). |
-| `clawvault_search` | FTS5 full-text search, ranked by relevance. |
-| `clawvault_recent` | Most recent memories, newest first. |
-| `clawvault_stats` | Totals and breakdown by type / machine / importance. |
+| `clawvault_save` | Store a memory — `content`, `memory_type`, `importance`, `keywords`, **`source`**, **`verified`**. |
+| `clawvault_search` | FTS5 full-text search, ranked by relevance (BM25). |
+| `clawvault_recent` | Most recent memories, newest first; filter by type / minimum importance. |
+| `clawvault_stats` | Totals + breakdown by type, machine, importance, and verified count. |
 
-## Storage
+## 📥 Install
 
-A single SQLite database (default `~/.openclaw/memory/clawvault.db`) using Node's
-built-in `node:sqlite` — **no native build step**. Schema:
-
-```sql
-CREATE TABLE memories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  timestamp TEXT NOT NULL,
-  memory_type TEXT,
-  content TEXT NOT NULL,
-  importance INTEGER DEFAULT 6,
-  keywords TEXT,
-  source_machine TEXT,
-  ranger_id TEXT
-);
-CREATE VIRTUAL TABLE memories_fts USING fts5(content, keywords, content='memories');
+**From source (local):**
+```bash
+git clone https://github.com/davidtkeane/openclaw-plugin-clawvault
+cd openclaw-plugin-clawvault
+npm install
+npm run plugin:build
+openclaw plugins install ./
+openclaw daemon restart
 ```
 
-Triggers keep `memories_fts` in sync automatically on insert/update/delete.
+Trust the locally-installed plugin (silences the "untracked local code" notice) by adding to
+`~/.openclaw/openclaw.json`:
+```json
+{ "plugins": { "allow": ["clawvault"], "entries": { "clawvault": { "enabled": true } } } }
+```
 
-A brand-new database is **seeded** with a base identity layer (who the agent is,
-its rules, guidelines, and mission) so it starts with self-knowledge. Disable with
-`seedIdentity: false`.
+**From ClawHub** (once published):
+```bash
+openclaw plugins install clawhub:clawvault
+```
 
-## Config
+## ⚙️ Configuration
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `dbPath` | `~/.openclaw/memory/clawvault.db` | Database location (supports `~`). |
-| `defaultImportance` | `6` | Importance applied when a save omits one. |
+| `dbPath` | `~/.openclaw/memory/clawvault.db` | Database location (supports a leading `~`). |
+| `defaultImportance` | `6` | Importance (1–20) applied when a save omits one. |
 | `sourceMachine` | auto (from hostname) | Machine tag stored on each memory. |
-| `seedIdentity` | `true` | Seed the base identity layer into a fresh DB. |
+| `seedIdentity` | `true` | Seed a base identity layer into a brand-new database. |
 
-## Develop
+## 🧠 The identity seed
+
+A brand-new database is **seeded** with a base layer — who the agent is, its rules, guidelines, and
+mission — so it wakes up with self-knowledge instead of a blank slate. Turn it off with
+`seedIdentity: false`.
+
+## 🗄️ Schema
+
+```sql
+CREATE TABLE memories (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp     TEXT NOT NULL,
+  memory_type   TEXT,
+  content       TEXT NOT NULL,
+  importance    INTEGER DEFAULT 6,
+  keywords      TEXT,
+  source_machine TEXT,
+  ranger_id     TEXT,
+  source        TEXT,          -- where this fact came from
+  verified      INTEGER DEFAULT 0  -- 1 only if actually checked
+);
+
+CREATE VIRTUAL TABLE memories_fts USING fts5(content, keywords, content='memories');
+```
+
+Triggers keep `memories_fts` in sync automatically on insert / update / delete. Older databases are
+migrated in place (the `source` and `verified` columns are added on first use).
+
+> **Backing up:** the DB runs in WAL mode, so the latest writes live in a `-wal` sidecar — a plain
+> `cp` of the `.db` alone can miss them. Use a consistent copy:
+> `sqlite3 ~/.openclaw/memory/clawvault.db ".backup /path/to/backup.db"`.
+
+## 🧑‍💻 Development
 
 Requires Node 22.22.3+ / 24.15+ / 25.9+ and `openclaw >= 2026.5.17`.
 
 ```bash
 npm install
-npm run plugin:build      # tsc + openclaw plugins build
-npm run plugin:validate   # tsc + openclaw plugins validate
-npm test                  # vitest metadata test
+npm run plugin:build      # tsc + `openclaw plugins build` (regenerates the manifest)
+npm run plugin:validate   # tsc + `openclaw plugins validate`
+npm test                  # vitest
 ```
 
-## License
+The plugin is a single `defineToolPlugin` in `src/index.ts` — the whole thing is one readable file.
 
-MIT
+## 📄 License
+
+MIT © 2026 David Keane. See [LICENSE](./LICENSE).
+
+<div align="center">
+
+*Search before you answer. Verify before you save. Always record the source.* 🐘
+
+</div>
