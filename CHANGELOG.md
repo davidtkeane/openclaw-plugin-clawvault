@@ -5,6 +5,17 @@ this project follows [Semantic Versioning](https://semver.org).
 
 ## Plugin (`openclaw-plugin-clawvault`)
 
+### [0.5.1] — 2026-08-15
+**Security & privacy cleanup** (from a SkillSpector / NVIDIA review).
+#### Changed
+- Pinned all dependencies and bumped **`vitest` 3.2.0 → 4.1.10** (clears a critical advisory),
+  `typebox` → 1.3.14, and the `openclaw` dev/peer floor → 2026.7.1-2 (patched host).
+- The seed layer is now **generic operating rules** (verify-before-save, tell-vs-do, confirm-before-destructive)
+  — no personal identity or persona is injected into a fresh database.
+#### Added
+- **Privacy & data** section (README + skill): memories are stored locally, nothing leaves the machine,
+  and how to disable the seed or delete data.
+
 ### [0.5.0] — 2026-08-15
 **Linked memories (knowledge graph).**
 #### Added
@@ -48,6 +59,12 @@ this project follows [Semantic Versioning](https://semver.org).
 ---
 
 ## Skill (`clawvault-memory`)
+
+### [1.1.1] — 2026-08-15
+#### Added
+- Privacy note: memories are stored locally; don't save secrets/credentials unless the user asks.
+#### Changed
+- Removed personal persona from guidance; generic verify-before-save workflow.
 
 ### [1.1.0] — 2026-08-15
 #### Added

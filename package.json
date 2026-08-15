@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-clawvault",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "ClawVault — persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions.",
   "type": "module",
   "license": "MIT",
@@ -28,24 +28,24 @@
     "README.md"
   ],
   "peerDependencies": {
-    "openclaw": ">=2026.5.17"
+    "openclaw": ">=2026.7.1-2"
   },
   "dependencies": {
-    "typebox": "^1.1.38"
+    "typebox": "1.3.14"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
-    "openclaw": "latest",
-    "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "@types/node": "24.3.0",
+    "openclaw": "2026.7.1-2",
+    "typescript": "5.9.2",
+    "vitest": "4.1.10"
   },
   "openclaw": {
     "extensions": [
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.5.17",
-      "minGatewayVersion": "2026.5.17"
+      "pluginApi": ">=2026.7.1-2",
+      "minGatewayVersion": "2026.7.1-2"
     },
     "build": {
       "openclawVersion": "2026.7.1-2",

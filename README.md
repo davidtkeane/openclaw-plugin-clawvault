@@ -111,11 +111,23 @@ That one block turns ClawVault from "a memory that *can* record sources" into "a
 | `sourceMachine` | auto (from hostname) | Machine tag stored on each memory. |
 | `seedIdentity` | `true` | Seed a base identity layer into a brand-new database. |
 
-## 🧠 The identity seed
+## 🧠 The seed layer
 
-A brand-new database is **seeded** with a base layer — who the agent is, its rules, guidelines, and
-mission — so it wakes up with self-knowledge instead of a blank slate. Turn it off with
-`seedIdentity: false`.
+A brand-new database is **seeded** with a small set of **generic operating rules** (verify-before-save,
+tell-vs-do, confirm-before-destructive) so the agent starts with good memory discipline. **No personal
+identity or persona is injected.** Turn it off entirely with `seedIdentity: false`.
+
+## 🔒 Privacy & data
+
+ClawVault stores **conversation-derived memories** (facts, decisions, preferences, corrections that you or
+the agent choose to save) in a **local SQLite file** — by default `~/.openclaw/memory/clawvault.db`.
+
+- **Nothing leaves your machine.** No network access, no telemetry, no external transmission.
+- **Data persists across sessions** and is recalled later — that's the point. Saved content is retained
+  until you remove it, so be mindful of what you ask it to remember.
+- **You stay in control:** set `dbPath` wherever you like, use `seedIdentity: false` to skip the seed, and
+  edit or delete the SQLite file directly at any time (it's a plain database). Superseded memories are
+  hidden, not deleted — remove rows manually if you need them gone.
 
 ## 🗄️ Schema
 

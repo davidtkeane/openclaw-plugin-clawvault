@@ -13,6 +13,10 @@ a made-up "fact" into long-term memory.
 > Requires the **ClawVault plugin** (`openclaw plugins install clawhub:clawvault` or from
 > [GitHub](https://github.com/davidtkeane/openclaw-plugin-clawvault)), which provides the
 > `clawvault_*` tools this skill drives.
+>
+> 🔒 **Privacy:** memories are stored in a **local SQLite file** and persist across sessions; nothing
+> leaves the machine. If the user shares something sensitive, let them know memory is on — don't save
+> secrets, credentials, or personal data unless the user explicitly asks you to.
 
 ## When to activate
 
