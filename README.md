@@ -152,6 +152,19 @@ npm test                  # vitest
 
 The plugin is a single `defineToolPlugin` in `src/index.ts` — the whole thing is one readable file.
 
+## 🙏 Credits & inspiration
+
+ClawVault borrows ideas from these open-source OpenClaw projects — credited here in the spirit of
+ClawVault's own rule: **always record the source**. All are permissively licensed (MIT / MIT-0), so
+attribution isn't required — we give it anyway. Ideas were reimplemented for ClawVault's SQLite+FTS5
+model; no code was copied.
+
+| Project | Author | Idea we borrowed |
+| --- | --- | --- |
+| [OpenClawDreams](https://github.com/RogueCtrl/OpenClawDreams) | RogueCtrl · MIT | "Explored-territory" duplicate avoidance and the consolidation (reflection/dream) cycle |
+| [self-improving](https://clawhub.ai/ivangdavila/skills/self-improving) | @ivangdavila · MIT-0 | Tiered promotion of recurring lessons and the self-reflection loop |
+| [self-improving-agent](https://clawhub.ai/pskoett/skills/self-improving-agent) | @pskoett · MIT-0 | Pattern-key recurrence detection and graduating proven lessons into always-on memory |
+
 ## 📄 License
 
 MIT © 2026 David Keane. See [LICENSE](./LICENSE).
