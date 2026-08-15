@@ -1,6 +1,6 @@
 ---
 name: clawvault-memory
-description: Durable-memory + self-improving workflow for the ClawVault plugin. Activate whenever the user asks you to remember or recall, when a fact is worth keeping, OR when something fails, the user corrects you, or you find a better approach. Captures lessons, detects recurring patterns, promotes proven ones, and enforces search-before-answer and verify-before-save so memory holds checked facts, not guesses.
+description: Durable-memory + self-improving workflow for the ClawVault plugin. Activate whenever the user asks you to remember or recall, when a fact is worth keeping, OR when something fails, the user corrects you, or you find a better approach. Captures lessons, detects recurring patterns, promotes proven ones, and enforces write-before-respond, search-before-answer, and verify-before-save so memory holds checked facts, not guesses.
 metadata: { "openclaw": { "emoji": "🐘", "homepage": "https://github.com/davidtkeane/openclaw-plugin-clawvault" } }
 ---
 
@@ -24,6 +24,16 @@ a made-up "fact" into long-term memory.
 - **The user corrects you** ("No, that's wrong…", "Actually…") or rejects your work
 - **You discover a better approach**, or a requested capability doesn't exist
 - **Before a major task** — review relevant lessons first (`clawvault_search`)
+
+## Write before you respond (durability)
+
+When the user states something worth keeping — a **preference, decision, deadline, fact, or
+correction** — save it to ClawVault **before** you write your reply, not after. If the session
+crashes or compacts mid-turn, the memory is already safe. The order is: **recall → write → respond.**
+
+**Save silently.** Don't narrate every write or announce "I've saved that" each time — it clutters the
+conversation. Save quietly and keep the flow going; only mention a save when confirming something
+important (e.g. a key decision or a verified fact the user asked you to remember).
 
 ## The workflow
 

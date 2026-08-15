@@ -164,6 +164,7 @@ model; no code was copied.
 | [OpenClawDreams](https://github.com/RogueCtrl/OpenClawDreams) | RogueCtrl · MIT | "Explored-territory" duplicate avoidance and the consolidation (reflection/dream) cycle |
 | [self-improving](https://clawhub.ai/ivangdavila/skills/self-improving) | @ivangdavila · MIT-0 | Tiered promotion of recurring lessons and the self-reflection loop |
 | [self-improving-agent](https://clawhub.ai/pskoett/skills/self-improving-agent) | @pskoett · MIT-0 | Pattern-key recurrence detection and graduating proven lessons into always-on memory |
+| [elite-longterm-memory](https://clawhub.ai/nextfrontierbuilds/skills/elite-longterm-memory) | @nextfrontierbuilds · MIT-0 | The WAL "write-before-respond" durability rule and silent saves |
 
 ## 📄 License
 
