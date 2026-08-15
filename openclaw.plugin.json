@@ -1,8 +1,8 @@
 {
   "id": "clawvault",
   "name": "ClawVault",
-  "description": "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, and topic consolidation.",
-  "version": "0.3.0",
+  "description": "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, topic consolidation, and a verified-claim guard that keeps unproven facts out of trusted memory.",
+  "version": "0.4.0",
   "configSchema": {
     "type": "object",
     "properties": {
@@ -25,6 +25,10 @@
       "dedupThreshold": {
         "type": "number",
         "description": "Term-overlap similarity (0-1) above which clawvault_save treats a new memory as a duplicate. Default 0.85. Lower = stricter deduping."
+      },
+      "strictVerification": {
+        "type": "boolean",
+        "description": "When true (default), clawvault_save downgrades verified:true to unverified unless the source shows real evidence of a check (a command, URL, file path, or a user statement). Stops a confident recollection from being stored as a verified fact."
       }
     }
   },

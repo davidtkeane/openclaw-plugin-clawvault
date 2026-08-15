@@ -51,6 +51,12 @@ const ConfigSchema = Type.Object({
         "Term-overlap similarity (0-1) above which clawvault_save treats a new memory as a duplicate. Default 0.85. Lower = stricter deduping.",
     }),
   ),
+  strictVerification: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true (default), clawvault_save downgrades verified:true to unverified unless the source shows real evidence of a check (a command, URL, file path, or a user statement). Stops a confident recollection from being stored as a verified fact.",
+    }),
+  ),
 });
 
 type Config = {
@@ -59,6 +65,7 @@ type Config = {
   sourceMachine?: string;
   seedIdentity?: boolean;
   dedupThreshold?: number;
+  strictVerification?: boolean;
 };
 
 type MemoryRow = {
@@ -253,11 +260,40 @@ function similarity(a: string, b: string): number {
   return union === 0 ? 0 : inter / union;
 }
 
+/**
+ * Heuristic: does `source` show evidence of an ACTUAL check this turn, rather than a
+ * confidence claim? Used to downgrade an over-claimed verified:true. Conservative by design
+ * — when unsure it returns false, so uncertain facts are stored as unverified.
+ */
+function looksLikeEvidence(source?: string | null): boolean {
+  if (!source) return false;
+  const s = source.trim();
+  if (!s) return false;
+  const low = s.toLowerCase();
+  // A URL, a file path, a file extension, or shell/query metacharacters
+  if (/https?:\/\//.test(low)) return true;
+  if (/(^|\s)~?\/[\w.@/-]+/.test(s)) return true;
+  if (/\.(md|db|json|ya?ml|ts|js|log|csv|txt|sh|toml|sql|py|conf)\b/.test(low)) return true;
+  if (/[`$|]|--[a-z]/.test(s)) return true;
+  // Command / action verbs denoting an actual check
+  if (
+    /\b(curl|wget|sqlite3?|select |insert |grep|cat |ls |head |tail |npm |npx |git |openclaw|psql|awk|sed|ran |executed|fetched|queried|read the|checked the|observed|inspected|endpoint|api\/|port \d)\b/.test(
+      low,
+    )
+  )
+    return true;
+  // Observing a user statement is legitimate verification (ground truth was stated this turn)
+  if (/\buser (request|preference|statement|instruction|said|stated|told|asked)\b/.test(low)) return true;
+  if (/\b(user|you)\b[^.]{0,30}\b(said|stated|requested|asked|told|prefers?|wants?|instructed)\b/.test(low))
+    return true;
+  return false;
+}
+
 export default defineToolPlugin({
   id: "clawvault",
   name: "ClawVault",
   description:
-    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, and topic consolidation.",
+    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, topic consolidation, and a verified-claim guard that keeps unproven facts out of trusted memory.",
   configSchema: ConfigSchema,
   tools: (tool) => [
     tool({
@@ -283,7 +319,7 @@ export default defineToolPlugin({
         verified: Type.Optional(
           Type.Boolean({
             description:
-              "True ONLY if you actually checked this against ground truth (ran it, read it, fetched it). If unverified, set memory_type to 'unverified' instead of claiming it as fact.",
+              "True ONLY if you actually checked this against ground truth THIS turn (ran a command, read a file, queried the DB, fetched a URL) — put that command/URL/file in `source`. A confident recollection is NOT verified. The plugin auto-downgrades verified:true to unverified when `source` shows no evidence of a real check.",
           }),
         ),
         supersedes: Type.Optional(
@@ -335,7 +371,17 @@ export default defineToolPlugin({
         const now = new Date().toISOString();
         const importance = params.importance ?? config.defaultImportance ?? 6;
         const machine = params.source_machine?.trim() || detectMachine(config);
-        const verified = params.verified ? 1 : 0;
+
+        // Verified guard: a confident recollection is NOT a checked fact. Downgrade
+        // verified:true to unverified unless the source shows real evidence of a check.
+        const strict = config.strictVerification !== false;
+        let verified = params.verified ? 1 : 0;
+        let verificationDowngraded = false;
+        if (verified === 1 && strict && !looksLikeEvidence(params.source)) {
+          verified = 0;
+          verificationDowngraded = true;
+        }
+
         const res = db
           .prepare(
             "INSERT INTO memories (timestamp, memory_type, content, importance, keywords, source_machine, ranger_id, source, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -369,6 +415,13 @@ export default defineToolPlugin({
           source_machine: machine,
           source: params.source ?? null,
           verified: Boolean(verified),
+          verificationDowngraded,
+          ...(verificationDowngraded
+            ? {
+                verificationNote:
+                  "Stored as UNVERIFIED: the source shows no evidence of an actual check (no command, URL, file, or user statement). A confident recollection is not a checked fact. To mark it verified, re-save after checking and put the exact command/URL/file you used in `source`.",
+              }
+            : {}),
           supersededCount,
         };
       },

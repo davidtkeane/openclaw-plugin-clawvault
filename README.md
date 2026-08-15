@@ -54,6 +54,7 @@ know." ClawVault makes honesty part of the schema:
 
 - **Duplicate guard** — `clawvault_save` compares new content against existing memories (FTS + term overlap). A near-identical memory (≥ `dedupThreshold`, default 0.85) is refused with the id of the existing one, so the store doesn't fill with restated facts. Pass `force:true` to override.
 - **Consolidation** — `clawvault_consolidate` returns a cluster of related memories so the agent can distil them into one higher-level `insight`, then `clawvault_save(..., supersedes:[ids])` soft-retires the raw rows. Superseded memories are hidden from search/recent by default (`include_superseded:true` to see them) — nothing is ever deleted.
+- **Verified-claim guard (v0.4)** — `clawvault_save` auto-downgrades `verified:true` to unverified unless `source` shows evidence of a real check (a command, URL, file path, or a user statement). A confident recollection can't masquerade as a checked fact — the store defends its own integrity instead of trusting the model. Disable with `strictVerification:false`.
 
 ## 📥 Install
 

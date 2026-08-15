@@ -72,7 +72,8 @@ clawvault_save({ content: "…", memory_type: "unverified" })
 > answering from what you already "know" — even a fact you're highly confident about (a version number,
 > a distance, an API detail) — use `verified: false` and `memory_type: "unverified"`. *"I'm confident"*
 > is not *"I checked."* A confident recollection saved as `verified` is exactly the hallucination this
-> skill exists to prevent.
+> skill exists to prevent. (The ClawVault plugin also **auto-downgrades** `verified:true` to unverified
+> when `source` shows no evidence of a real check — so put the actual command/URL/file in `source`.)
 
 ### 3. Don't repeat yourself
 `clawvault_save` refuses a near-duplicate and returns the existing id. Don't force a
