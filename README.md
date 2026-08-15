@@ -44,10 +44,16 @@ know." ClawVault makes honesty part of the schema:
 
 | Tool | Purpose |
 | --- | --- |
-| `clawvault_save` | Store a memory — `content`, `memory_type`, `importance`, `keywords`, **`source`**, **`verified`**. |
+| `clawvault_save` | Store a memory — `content`, `memory_type`, `importance`, `keywords`, **`source`**, **`verified`**. Refuses near-duplicates unless `force:true`; can `supersede` older memories. |
 | `clawvault_search` | FTS5 full-text search, ranked by relevance (BM25). |
 | `clawvault_recent` | Most recent memories, newest first; filter by type / minimum importance. |
-| `clawvault_stats` | Totals + breakdown by type, machine, importance, and verified count. |
+| `clawvault_consolidate` | Gather related memories on a topic to synthesize into one durable insight, then soft-retire the raw ones. |
+| `clawvault_stats` | Totals + breakdown by type, machine, importance, verified & superseded counts. |
+
+### Keeping memory clean (v0.3)
+
+- **Duplicate guard** — `clawvault_save` compares new content against existing memories (FTS + term overlap). A near-identical memory (≥ `dedupThreshold`, default 0.85) is refused with the id of the existing one, so the store doesn't fill with restated facts. Pass `force:true` to override.
+- **Consolidation** — `clawvault_consolidate` returns a cluster of related memories so the agent can distil them into one higher-level `insight`, then `clawvault_save(..., supersedes:[ids])` soft-retires the raw rows. Superseded memories are hidden from search/recent by default (`include_superseded:true` to see them) — nothing is ever deleted.
 
 ## 📥 Install
 

@@ -8,13 +8,20 @@ import { mkdirSync } from "node:fs";
 /**
  * ClawVault — a persistent SQLite + FTS5 memory for OpenClaw.
  *
- * Tools: clawvault_save, clawvault_search, clawvault_recent, clawvault_stats.
+ * Tools:
+ *   clawvault_save        — store a memory (with source/verified + duplicate guard)
+ *   clawvault_search      — FTS5 relevance-ranked recall
+ *   clawvault_recent      — timeline of recent memories
+ *   clawvault_stats       — totals and breakdowns
+ *   clawvault_consolidate — gather related memories to synthesize into one insight
+ *
  * Storage is a plain SQLite database (Node's built-in node:sqlite — no native
  * build step) with an FTS5 full-text index for fast, relevance-ranked recall.
  */
 
 const RANGER_ID = "AIRanger_Claude";
 const DEFAULT_DB = join(homedir(), ".openclaw", "memory", "clawvault.db");
+const DEFAULT_DEDUP_THRESHOLD = 0.85;
 
 const ConfigSchema = Type.Object({
   dbPath: Type.Optional(
@@ -38,6 +45,12 @@ const ConfigSchema = Type.Object({
       description: "Seed Ranger identity, rules and guidelines into a brand-new database. Default true.",
     }),
   ),
+  dedupThreshold: Type.Optional(
+    Type.Number({
+      description:
+        "Term-overlap similarity (0-1) above which clawvault_save treats a new memory as a duplicate. Default 0.85. Lower = stricter deduping.",
+    }),
+  ),
 });
 
 type Config = {
@@ -45,6 +58,7 @@ type Config = {
   defaultImportance?: number;
   sourceMachine?: string;
   seedIdentity?: boolean;
+  dedupThreshold?: number;
 };
 
 type MemoryRow = {
@@ -57,6 +71,7 @@ type MemoryRow = {
   source_machine: string | null;
   source: string | null;
   verified: number | null;
+  superseded: number | null;
 };
 
 // --- The base layer of memory: who Ranger is, the rules, the mission. ---
@@ -116,7 +131,7 @@ const SEED: Array<{ type: string; importance: number; keywords: string; content:
     importance: 10,
     keywords: "clawvault,memory,howto,tools",
     content:
-      "ClawVault is Ranger's persistent SQLite+FTS5 memory for OpenClaw. Use clawvault_save to remember things, clawvault_search to recall them, clawvault_recent for a timeline, and clawvault_stats for an overview.",
+      "ClawVault is Ranger's persistent SQLite+FTS5 memory for OpenClaw. Use clawvault_save to remember things, clawvault_search to recall them, clawvault_recent for a timeline, clawvault_consolidate to synthesize, and clawvault_stats for an overview.",
   },
 ];
 
@@ -156,7 +171,8 @@ function initSchema(db: DatabaseSync): void {
       source_machine TEXT,
       ranger_id TEXT,
       source TEXT,
-      verified INTEGER DEFAULT 0
+      verified INTEGER DEFAULT 0,
+      superseded INTEGER DEFAULT 0
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
       content, keywords, content='memories', content_rowid='id'
@@ -176,10 +192,11 @@ function initSchema(db: DatabaseSync): void {
       VALUES (new.id, new.content, new.keywords);
     END;
   `);
-  // Migrate databases created before the source/verified columns existed.
+  // Migrate older databases to the current column set (additive, safe to re-run).
   const cols = (db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>).map((c) => c.name);
   if (!cols.includes("source")) db.exec("ALTER TABLE memories ADD COLUMN source TEXT");
   if (!cols.includes("verified")) db.exec("ALTER TABLE memories ADD COLUMN verified INTEGER DEFAULT 0");
+  if (!cols.includes("superseded")) db.exec("ALTER TABLE memories ADD COLUMN superseded INTEGER DEFAULT 0");
 }
 
 function seedIdentity(db: DatabaseSync, machine: string): void {
@@ -206,28 +223,52 @@ function getDb(config: Config): DatabaseSync {
   return db;
 }
 
-/** Turn free text into a safe FTS5 MATCH expression: each word quoted, implicit AND. */
+/** Extract lowercase word tokens. */
+function tokens(text: string): string[] {
+  return (text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? []) as string[];
+}
+
+/** FTS5 MATCH expression: each word quoted, implicit AND (all terms). */
 function toMatch(query: string): string {
-  const terms = query.match(/[\p{L}\p{N}_]+/gu) ?? [];
-  return terms.map((t) => `"${t}"`).join(" ");
+  return tokens(query)
+    .map((t) => `"${t}"`)
+    .join(" ");
+}
+
+/** FTS5 MATCH expression: each word quoted, OR-joined (any term) — for finding related/similar rows. */
+function toMatchOr(query: string): string {
+  return tokens(query)
+    .map((t) => `"${t}"`)
+    .join(" OR ");
+}
+
+/** Jaccard similarity of two token sets (0-1). */
+function similarity(a: string, b: string): number {
+  const sa = new Set(tokens(a));
+  const sb = new Set(tokens(b));
+  if (sa.size === 0 && sb.size === 0) return 1;
+  let inter = 0;
+  for (const t of sa) if (sb.has(t)) inter++;
+  const union = sa.size + sb.size - inter;
+  return union === 0 ? 0 : inter / union;
 }
 
 export default defineToolPlugin({
   id: "clawvault",
   name: "ClawVault",
   description:
-    "Persistent SQLite + FTS5 memory for OpenClaw. Save memories and recall them across sessions with fast, relevance-ranked full-text search.",
+    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, and topic consolidation.",
   configSchema: ConfigSchema,
   tools: (tool) => [
     tool({
       name: "clawvault_save",
       label: "ClawVault Save",
       description:
-        "Save a memory to ClawVault (persistent SQLite memory). Use for facts, decisions, preferences, rules, and anything worth remembering across sessions.",
+        "Save a memory to ClawVault (persistent SQLite memory). Use for facts, decisions, preferences, rules, and anything worth remembering across sessions. Refuses to store a near-duplicate unless force:true.",
       parameters: Type.Object({
         content: Type.String({ description: "The memory text to store." }),
         memory_type: Type.Optional(
-          Type.String({ description: "Category, e.g. fact, decision, preference, rule, identity." }),
+          Type.String({ description: "Category, e.g. fact, decision, preference, rule, insight, identity." }),
         ),
         importance: Type.Optional(
           Type.Number({ description: "1-20 (higher = more important). Defaults to the plugin's defaultImportance." }),
@@ -245,10 +286,52 @@ export default defineToolPlugin({
               "True ONLY if you actually checked this against ground truth (ran it, read it, fetched it). If unverified, set memory_type to 'unverified' instead of claiming it as fact.",
           }),
         ),
+        supersedes: Type.Optional(
+          Type.Array(Type.Number(), {
+            description:
+              "Memory ids this new memory replaces (e.g. when saving a consolidation). Those rows are marked superseded (soft-retired), not deleted.",
+          }),
+        ),
+        force: Type.Optional(
+          Type.Boolean({ description: "Save even if a near-identical memory already exists (skip the duplicate guard)." }),
+        ),
         source_machine: Type.Optional(Type.String({ description: "Override the machine tag for this memory." })),
       }),
       execute: (params, config: Config) => {
         const db = getDb(config);
+
+        // Duplicate guard: don't store what we already know (borrowed "explored-territory").
+        if (!params.force) {
+          const match = toMatchOr(params.content);
+          if (match) {
+            const candidates = db
+              .prepare(
+                "SELECT m.id, m.content FROM memories_fts JOIN memories m ON m.id = memories_fts.rowid " +
+                  "WHERE memories_fts MATCH ? AND m.superseded = 0 ORDER BY memories_fts.rank LIMIT 5",
+              )
+              .all(match) as unknown as Array<{ id: number; content: string }>;
+            let bestId = 0;
+            let bestSim = 0;
+            for (const c of candidates) {
+              const sim = similarity(params.content, c.content);
+              if (sim > bestSim) {
+                bestSim = sim;
+                bestId = c.id;
+              }
+            }
+            const threshold = config.dedupThreshold ?? DEFAULT_DEDUP_THRESHOLD;
+            if (bestSim >= threshold) {
+              return {
+                saved: false,
+                duplicate: true,
+                existingId: bestId,
+                similarity: Number(bestSim.toFixed(3)),
+                hint: "A near-identical memory already exists. Pass force:true to save anyway, or update/consolidate the existing one.",
+              };
+            }
+          }
+        }
+
         const now = new Date().toISOString();
         const importance = params.importance ?? config.defaultImportance ?? 6;
         const machine = params.source_machine?.trim() || detectMachine(config);
@@ -268,6 +351,16 @@ export default defineToolPlugin({
             params.source ?? null,
             verified,
           );
+
+        // Soft-retire any memories this one supersedes.
+        let supersededCount = 0;
+        if (params.supersedes && params.supersedes.length) {
+          const upd = db.prepare("UPDATE memories SET superseded = 1 WHERE id = ? AND superseded = 0");
+          for (const sid of params.supersedes) {
+            supersededCount += Number(upd.run(sid).changes);
+          }
+        }
+
         return {
           saved: true,
           id: Number(res.lastInsertRowid),
@@ -276,6 +369,7 @@ export default defineToolPlugin({
           source_machine: machine,
           source: params.source ?? null,
           verified: Boolean(verified),
+          supersededCount,
         };
       },
     }),
@@ -288,19 +382,29 @@ export default defineToolPlugin({
         query: Type.String({ description: "Words to search for. Matches memory content and keywords." }),
         limit: Type.Optional(Type.Number({ description: "Max results (default 10, max 100)." })),
         memory_type: Type.Optional(Type.String({ description: "Filter to a single memory_type." })),
+        include_superseded: Type.Optional(
+          Type.Boolean({ description: "Include soft-retired (superseded) memories. Default false." }),
+        ),
       }),
       execute: (params, config: Config) => {
         const db = getDb(config);
         const match = toMatch(params.query);
         const limit = Math.max(1, Math.min(params.limit ?? 10, 100));
         if (!match) return { query: params.query, count: 0, results: [] as MemoryRow[] };
+        const clauses = ["memories_fts MATCH ?"];
+        const args: Array<string | number> = [match];
+        if (!params.include_superseded) clauses.push("m.superseded = 0");
+        if (params.memory_type) {
+          clauses.push("m.memory_type = ?");
+          args.push(params.memory_type);
+        }
+        args.push(limit);
         const sql =
-          "SELECT m.id, m.timestamp, m.memory_type, m.importance, m.keywords, m.source_machine, m.source, m.verified, m.content, memories_fts.rank AS score " +
+          "SELECT m.id, m.timestamp, m.memory_type, m.importance, m.keywords, m.source_machine, m.source, m.verified, m.superseded, m.content, memories_fts.rank AS score " +
           "FROM memories_fts JOIN memories m ON m.id = memories_fts.rowid " +
-          "WHERE memories_fts MATCH ?" +
-          (params.memory_type ? " AND m.memory_type = ?" : "") +
+          "WHERE " +
+          clauses.join(" AND ") +
           " ORDER BY memories_fts.rank LIMIT ?";
-        const args = params.memory_type ? [match, params.memory_type, limit] : [match, limit];
         const rows = db.prepare(sql).all(...args) as unknown as Array<MemoryRow & { score: number }>;
         return { query: params.query, count: rows.length, results: rows };
       },
@@ -314,12 +418,16 @@ export default defineToolPlugin({
         limit: Type.Optional(Type.Number({ description: "Max results (default 10, max 100)." })),
         memory_type: Type.Optional(Type.String({ description: "Filter to a single memory_type." })),
         min_importance: Type.Optional(Type.Number({ description: "Only memories with importance >= this value." })),
+        include_superseded: Type.Optional(
+          Type.Boolean({ description: "Include soft-retired (superseded) memories. Default false." }),
+        ),
       }),
       execute: (params, config: Config) => {
         const db = getDb(config);
         const limit = Math.max(1, Math.min(params.limit ?? 10, 100));
         const clauses: string[] = [];
         const args: Array<string | number> = [];
+        if (!params.include_superseded) clauses.push("superseded = 0");
         if (params.memory_type) {
           clauses.push("memory_type = ?");
           args.push(params.memory_type);
@@ -331,10 +439,45 @@ export default defineToolPlugin({
         const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
         const rows = db
           .prepare(
-            `SELECT id, timestamp, memory_type, importance, keywords, source_machine, source, verified, content FROM memories ${where} ORDER BY id DESC LIMIT ?`,
+            `SELECT id, timestamp, memory_type, importance, keywords, source_machine, source, verified, superseded, content FROM memories ${where} ORDER BY id DESC LIMIT ?`,
           )
           .all(...args, limit) as unknown as MemoryRow[];
         return { count: rows.length, results: rows };
+      },
+    }),
+    tool({
+      name: "clawvault_consolidate",
+      label: "ClawVault Consolidate",
+      description:
+        "Gather related memories on a topic so you can synthesize them into ONE durable insight. Returns the cluster (non-superseded) plus guidance. After you write the synthesis with clawvault_save, pass supersedes:[ids] to retire the raw memories.",
+      parameters: Type.Object({
+        topic: Type.String({ description: "Topic/query to cluster related memories around." }),
+        limit: Type.Optional(Type.Number({ description: "Max memories to gather (default 15, max 50)." })),
+      }),
+      execute: (params, config: Config) => {
+        const db = getDb(config);
+        const match = toMatchOr(params.topic);
+        const limit = Math.max(1, Math.min(params.limit ?? 15, 50));
+        if (!match) {
+          return { topic: params.topic, count: 0, ids: [] as number[], memories: [] as MemoryRow[], instruction: "No searchable terms in topic." };
+        }
+        const rows = db
+          .prepare(
+            "SELECT m.id, m.timestamp, m.memory_type, m.importance, m.source, m.verified, m.superseded, m.content " +
+              "FROM memories_fts JOIN memories m ON m.id = memories_fts.rowid " +
+              "WHERE memories_fts MATCH ? AND m.superseded = 0 ORDER BY memories_fts.rank LIMIT ?",
+          )
+          .all(match, limit) as unknown as MemoryRow[];
+        const ids = rows.map((r) => r.id);
+        return {
+          topic: params.topic,
+          count: rows.length,
+          ids,
+          memories: rows,
+          instruction: rows.length
+            ? `Synthesize these ${rows.length} memories into ONE durable, higher-level insight. Keep only what is verified; note any disagreements. Then call clawvault_save with memory_type:"insight", a source, verified:true if you checked it, and supersedes:${JSON.stringify(ids)} to retire these raw memories.`
+            : "No related memories found to consolidate.",
+        };
       },
     }),
     tool({
@@ -349,22 +492,34 @@ export default defineToolPlugin({
         const verifiedCount = (
           db.prepare("SELECT COUNT(*) AS n FROM memories WHERE verified = 1").get() as { n: number }
         ).n;
+        const supersededCount = (
+          db.prepare("SELECT COUNT(*) AS n FROM memories WHERE superseded = 1").get() as { n: number }
+        ).n;
         const byType = db
           .prepare(
-            "SELECT COALESCE(memory_type,'(none)') AS memory_type, COUNT(*) AS n FROM memories GROUP BY memory_type ORDER BY n DESC",
+            "SELECT COALESCE(memory_type,'(none)') AS memory_type, COUNT(*) AS n FROM memories WHERE superseded = 0 GROUP BY memory_type ORDER BY n DESC",
           )
           .all();
         const byMachine = db
           .prepare(
-            "SELECT COALESCE(source_machine,'(none)') AS source_machine, COUNT(*) AS n FROM memories GROUP BY source_machine ORDER BY n DESC",
+            "SELECT COALESCE(source_machine,'(none)') AS source_machine, COUNT(*) AS n FROM memories WHERE superseded = 0 GROUP BY source_machine ORDER BY n DESC",
           )
           .all();
         const topImportance = db
           .prepare(
-            "SELECT id, importance, memory_type, substr(content,1,80) AS preview FROM memories ORDER BY importance DESC, id DESC LIMIT 5",
+            "SELECT id, importance, memory_type, substr(content,1,80) AS preview FROM memories WHERE superseded = 0 ORDER BY importance DESC, id DESC LIMIT 5",
           )
           .all();
-        return { db: resolveDbPath(config), total, verified: verifiedCount, byType, byMachine, topImportance };
+        return {
+          db: resolveDbPath(config),
+          total,
+          active: total - supersededCount,
+          verified: verifiedCount,
+          superseded: supersededCount,
+          byType,
+          byMachine,
+          topImportance,
+        };
       },
     }),
   ],

@@ -1,8 +1,8 @@
 {
   "id": "clawvault",
   "name": "ClawVault",
-  "description": "Persistent SQLite + FTS5 memory for OpenClaw. Save memories and recall them across sessions with fast, relevance-ranked full-text search.",
-  "version": "0.2.0",
+  "description": "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, and topic consolidation.",
+  "version": "0.3.0",
   "configSchema": {
     "type": "object",
     "properties": {
@@ -21,6 +21,10 @@
       "seedIdentity": {
         "type": "boolean",
         "description": "Seed Ranger identity, rules and guidelines into a brand-new database. Default true."
+      },
+      "dedupThreshold": {
+        "type": "number",
+        "description": "Term-overlap similarity (0-1) above which clawvault_save treats a new memory as a duplicate. Default 0.85. Lower = stricter deduping."
       }
     }
   },
@@ -32,6 +36,7 @@
       "clawvault_save",
       "clawvault_search",
       "clawvault_recent",
+      "clawvault_consolidate",
       "clawvault_stats"
     ]
   }

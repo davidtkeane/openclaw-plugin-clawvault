@@ -8,6 +8,7 @@ describe("clawvault", () => {
       "clawvault_save",
       "clawvault_search",
       "clawvault_recent",
+      "clawvault_consolidate",
       "clawvault_stats",
     ]);
   });
