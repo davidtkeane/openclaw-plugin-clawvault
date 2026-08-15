@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-clawvault",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "ClawVault — persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions.",
   "type": "module",
   "license": "MIT",

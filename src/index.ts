@@ -304,7 +304,7 @@ export default defineToolPlugin({
   id: "clawvault",
   name: "ClawVault",
   description:
-    "Persistent SQLite + FTS5 memory for OpenClaw. Save and recall memories across sessions with relevance-ranked full-text search, a duplicate guard, topic consolidation, linked memories (a knowledge graph), and a verified-claim guard that keeps unproven facts out of trusted memory.",
+    "Persistent SQLite + FTS5 memory for OpenClaw. Stores conversation-derived memories in a local database (default ~/.openclaw/memory/clawvault.db) that persists across sessions and is retained until you remove it — nothing is transmitted off-machine. Provides relevance-ranked search, a duplicate guard, topic consolidation, linked memories (a knowledge graph), and a verified-claim guard that keeps unproven facts out of trusted memory. See the README Privacy section.",
   configSchema: ConfigSchema,
   tools: (tool) => [
     tool({

@@ -1,6 +1,6 @@
 ---
 name: clawvault-memory
-description: Durable-memory + self-improving workflow for the ClawVault plugin. Activate whenever the user asks you to remember or recall, when a fact is worth keeping, OR when something fails, the user corrects you, or you find a better approach. Captures lessons, detects recurring patterns, promotes proven ones, and enforces write-before-respond, search-before-answer, and verify-before-save so memory holds checked facts, not guesses.
+description: Durable-memory + self-improving workflow for the ClawVault plugin. Activate whenever the user asks you to remember or recall, when a fact is worth keeping, OR when something fails, the user corrects you, or you find a better approach. Captures lessons, detects recurring patterns, promotes proven ones, and enforces write-before-respond, search-before-answer, and verify-before-save so memory holds checked facts, not guesses. Stores conversation-derived memories in a local SQLite database that persists across sessions.
 metadata: { "openclaw": { "emoji": "🐘", "homepage": "https://github.com/davidtkeane/openclaw-plugin-clawvault" } }
 ---
 
@@ -14,9 +14,11 @@ a made-up "fact" into long-term memory.
 > [GitHub](https://github.com/davidtkeane/openclaw-plugin-clawvault)), which provides the
 > `clawvault_*` tools this skill drives.
 >
-> 🔒 **Privacy:** memories are stored in a **local SQLite file** and persist across sessions; nothing
-> leaves the machine. If the user shares something sensitive, let them know memory is on — don't save
-> secrets, credentials, or personal data unless the user explicitly asks you to.
+> 🔒 **Privacy:** ClawVault stores memories in a **local SQLite file** — the stored data never leaves the
+> machine (the plugin makes no network calls). *Verifying* a fact may use the agent's own web-search/fetch
+> tools, which is separate from ClawVault's storage. Memory persists across sessions, so if the user shares
+> something sensitive, tell them memory is on — and don't save secrets, credentials, or personal data
+> unless the user explicitly asks you to.
 
 ## When to activate
 
@@ -114,7 +116,7 @@ Use `memory_type`: **`error`** (something broke), **`correction`** (the user fix
 
 **2. Detect recurrence → promote.** Before saving, `clawvault_search` the pattern-key. If the lesson already exists, it recurred — **promote it**: save a sharpened version with higher `importance` and `supersedes:[oldId]`. Recurring pain earns higher importance.
 
-**3. Graduate proven lessons to always-on memory.** When a lesson keeps mattering, also write it into the workspace `AGENTS.md` / `TOOLS.md` so it's loaded *every* session — not just searchable on demand.
+**3. Graduate proven lessons.** When a lesson keeps mattering, raise its `importance` so it surfaces first in recall. If it's important enough to load *every* session, **suggest to the user** that they add it to their `AGENTS.md` — **do not edit instruction files yourself.** Auto-modifying always-loaded guidance is a prompt-injection risk (an attacker-supplied "lesson" could become permanent instructions); that decision belongs to the user.
 
 **4. Reflect after real work.** When a task completes, log a short reflection:
 

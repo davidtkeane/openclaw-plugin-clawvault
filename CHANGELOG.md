@@ -5,6 +5,16 @@ this project follows [Semantic Versioning](https://semver.org).
 
 ## Plugin (`openclaw-plugin-clawvault`)
 
+### [0.5.2] — 2026-08-16
+**Second SkillSpector pass — safety hardening.**
+#### Changed
+- The skill no longer tells the agent to auto-edit `AGENTS.md`/`TOOLS.md`; it now **suggests** the user do
+  it (closes a prompt-injection / instruction-persistence channel).
+- Clarified the privacy wording: ClawVault's *storage* is local and never transmitted; *verifying* a fact
+  may use the agent's own web tools (separate from ClawVault) — removes the "nothing leaves the machine"
+  contradiction.
+- Descriptions now explicitly disclose persistent local storage and retention.
+
 ### [0.5.1] — 2026-08-15
 **Security & privacy cleanup** (from a SkillSpector / NVIDIA review).
 #### Changed
@@ -59,6 +69,11 @@ this project follows [Semantic Versioning](https://semver.org).
 ---
 
 ## Skill (`clawvault-memory`)
+
+### [1.1.2] — 2026-08-16
+#### Changed
+- "Graduate lessons" now suggests the user edit `AGENTS.md` rather than the agent auto-editing instruction files.
+- Privacy note clarified (local storage vs the agent's separate web tools); description discloses persistence.
 
 ### [1.1.1] — 2026-08-15
 #### Added

@@ -122,7 +122,7 @@ identity or persona is injected.** Turn it off entirely with `seedIdentity: fals
 ClawVault stores **conversation-derived memories** (facts, decisions, preferences, corrections that you or
 the agent choose to save) in a **local SQLite file** — by default `~/.openclaw/memory/clawvault.db`.
 
-- **Nothing leaves your machine.** No network access, no telemetry, no external transmission.
+- **ClawVault itself makes no network calls** — stored data never leaves your machine (no telemetry, no external transmission). *Separately,* when you ask the agent to **verify** a fact, it may use its own web-search/fetch tools — that's the agent, not ClawVault.
 - **Data persists across sessions** and is recalled later — that's the point. Saved content is retained
   until you remove it, so be mindful of what you ask it to remember.
 - **You stay in control:** set `dbPath` wherever you like, use `seedIdentity: false` to skip the seed, and
