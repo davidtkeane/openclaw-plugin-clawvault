@@ -31,9 +31,11 @@ When the user states something worth keeping — a **preference, decision, deadl
 correction** — save it to ClawVault **before** you write your reply, not after. If the session
 crashes or compacts mid-turn, the memory is already safe. The order is: **recall → write → respond.**
 
-**Save silently.** Don't narrate every write or announce "I've saved that" each time — it clutters the
-conversation. Save quietly and keep the flow going; only mention a save when confirming something
-important (e.g. a key decision or a verified fact the user asked you to remember).
+**Answer first, save quietly.** Your reply must contain the **actual answer** to what the user asked —
+never just a save receipt like *"Saved that to ClawVault."* Do the save in the background, then answer
+normally. Don't narrate every write or announce "I've saved that"; only mention a save when explicitly
+confirming an important decision the user asked you to record. A memory saved but a question left
+unanswered is a failed turn.
 
 ## The workflow
 
@@ -64,6 +66,13 @@ If you could **not** verify it, save it as a question to confirm — never as tr
 ```
 clawvault_save({ content: "…", memory_type: "unverified" })
 ```
+
+> **⚠️ Reciting from your own memory/training is NOT verification.** Set `verified: true` **only** if
+> you actually ran a tool, read a file, queried the DB, or fetched a source **this turn**. If you're
+> answering from what you already "know" — even a fact you're highly confident about (a version number,
+> a distance, an API detail) — use `verified: false` and `memory_type: "unverified"`. *"I'm confident"*
+> is not *"I checked."* A confident recollection saved as `verified` is exactly the hallucination this
+> skill exists to prevent.
 
 ### 3. Don't repeat yourself
 `clawvault_save` refuses a near-duplicate and returns the existing id. Don't force a
