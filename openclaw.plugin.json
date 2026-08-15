@@ -1,0 +1,38 @@
+{
+  "id": "clawvault",
+  "name": "ClawVault",
+  "description": "Persistent SQLite + FTS5 memory for OpenClaw. Save memories and recall them across sessions with fast, relevance-ranked full-text search.",
+  "version": "0.2.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "dbPath": {
+        "type": "string",
+        "description": "Path to the ClawVault SQLite database. Supports a leading ~. Default: ~/.openclaw/memory/clawvault.db"
+      },
+      "defaultImportance": {
+        "type": "number",
+        "description": "Importance (1-20) used when a saved memory omits one. Default 6."
+      },
+      "sourceMachine": {
+        "type": "string",
+        "description": "Machine tag stored with each memory (e.g. M4). Auto-detected from hostname when omitted."
+      },
+      "seedIdentity": {
+        "type": "boolean",
+        "description": "Seed Ranger identity, rules and guidelines into a brand-new database. Default true."
+      }
+    }
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "clawvault_save",
+      "clawvault_search",
+      "clawvault_recent",
+      "clawvault_stats"
+    ]
+  }
+}
