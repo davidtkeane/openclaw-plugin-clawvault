@@ -72,6 +72,26 @@ Trust the locally-installed plugin (silences the "untracked local code" notice) 
 openclaw plugins install clawhub:clawvault
 ```
 
+## 🧭 Recommended agent setup
+
+Installing the plugin gives your agent the *tools*. To get the *behavior* — an agent that searches
+its memory before answering and only saves what it has verified — add this to your agent's
+instructions (e.g. `~/.openclaw/workspace/AGENTS.md`). The full rationale is in [DOCTRINE.md](./DOCTRINE.md).
+
+```markdown
+## 🔍 Verify Before You Save (ClawVault)
+
+- Before answering a factual question, run `clawvault_search` first — don't guess what you already stored.
+- Prefer ground truth over memory: run the command / read the file / query the DB / check the internet.
+- After learning a VERIFIED fact, `clawvault_save` it with a `source` and `verified: true`.
+- Never save something you haven't checked. If unverified, set `memory_type: "unverified"`.
+- Tell-vs-do: if you claim you saved or changed something, verify it actually happened. Never claim, always check.
+- The 3-question test before stating/saving anything: (1) Where did I learn this? (2) Can I check it cheaply now? (3) What would prove me wrong?
+```
+
+That one block turns ClawVault from "a memory that *can* record sources" into "a memory that
+**only** trusts what was checked."
+
 ## ⚙️ Configuration
 
 | Field | Default | Meaning |
