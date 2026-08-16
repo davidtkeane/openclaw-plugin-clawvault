@@ -40,6 +40,14 @@ know." ClawVault makes honesty part of the schema:
   not a truth to trust.
 - The rule the agent follows: **search before you answer, verify before you save, always record the source.**
 
+### 🔍 The doctrine in action
+
+Ask the agent a factual question and — instead of answering from memory — it **searches first, then
+grounds its reply in cited sources** (and treats the web result as *untrusted* content). The same
+setup used to answer instantly from memory; with the verify-before-answer discipline it checks first:
+
+![An OpenClaw agent answering "what is the definition of psychology" by calling web search and grounding its reply in cited sources, guided by the verify-before-answer doctrine](clawvault-items/openclaw-skills-in-action.png)
+
 ## 🛠️ Tools
 
 | Tool | Purpose |
