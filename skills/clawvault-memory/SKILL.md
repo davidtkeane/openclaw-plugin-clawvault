@@ -10,7 +10,7 @@ ClawVault is a persistent SQLite + FTS5 memory. This skill is the *discipline* f
 it well: an agent that searches before it answers, verifies before it saves, and never lets
 a made-up "fact" into long-term memory.
 
-> Requires the **ClawVault plugin** (`openclaw plugins install clawhub:clawvault` or from
+> Requires the **ClawVault plugin** (`openclaw plugins install clawhub:openclaw-plugin-clawvault` or from
 > [GitHub](https://github.com/davidtkeane/openclaw-plugin-clawvault)), which provides the
 > `clawvault_*` tools this skill drives.
 >

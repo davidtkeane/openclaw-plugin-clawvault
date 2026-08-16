@@ -69,25 +69,30 @@ setup used to answer instantly from memory; with the verify-before-answer discip
 
 ## 📥 Install
 
-**From source (local):**
+**From ClawHub (recommended):**
+```bash
+openclaw plugins install clawhub:openclaw-plugin-clawvault
+openclaw gateway restart
+```
+
+> ⚠️ **Use the full name `openclaw-plugin-clawvault`.** The short `clawhub:clawvault` resolves to an
+> unrelated third-party package — not this plugin. This one command fetches the published package,
+> installs its dependency (`typebox`), and uses the prebuilt `dist/` — no clone or `npm install` needed.
+
+**From source (for development / running the tests):**
 ```bash
 git clone https://github.com/davidtkeane/openclaw-plugin-clawvault
 cd openclaw-plugin-clawvault
 npm install
 npm run plugin:build
 openclaw plugins install ./
-openclaw daemon restart
+openclaw gateway restart
 ```
 
 Trust the locally-installed plugin (silences the "untracked local code" notice) by adding to
 `~/.openclaw/openclaw.json`:
 ```json
 { "plugins": { "allow": ["clawvault"], "entries": { "clawvault": { "enabled": true } } } }
-```
-
-**From ClawHub** (once published):
-```bash
-openclaw plugins install clawhub:clawvault
 ```
 
 ## 🧭 Recommended agent setup
