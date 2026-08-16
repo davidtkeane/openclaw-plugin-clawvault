@@ -5,6 +5,19 @@ this project follows [Semantic Versioning](https://semver.org).
 
 ## Plugin (`openclaw-plugin-clawvault`)
 
+### [0.5.3] — 2026-08-17
+**Docs & tests (no runtime changes).**
+#### Changed
+- Install instructions now use the **full** ClawHub package name
+  `clawhub:openclaw-plugin-clawvault` and recommend the ClawHub path. The short `clawhub:clawvault`
+  collides with an unrelated third-party package, so it's called out as a warning.
+#### Added
+- **Test harness** — Layer A: deterministic tool tests (`src/mechanics.test.ts`, `npm test`); Layer B:
+  a portable model hallucination/honesty eval (`scripts/eval.mjs`) that scores fabrication bare vs
+  doctrine-primed. See [TESTING.md](./TESTING.md). Baseline on Qwen3-Coder-Next-4bit: 80% → 100%.
+- A "doctrine in action" screenshot in the README.
+- A test-only `toolsForTest` export in `src/index.ts` (runtime/register path unchanged).
+
 ### [0.5.2] — 2026-08-16
 **Second SkillSpector pass — safety hardening.**
 #### Changed
