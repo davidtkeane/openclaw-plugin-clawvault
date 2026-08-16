@@ -300,13 +300,25 @@ function looksLikeEvidence(source?: string | null): boolean {
   return false;
 }
 
+/**
+ * Test-only: the built tool objects (with their execute handlers), captured at
+ * module load. Not part of the plugin's public runtime surface — the register
+ * path is unchanged — this only lets the test harness drive tools directly.
+ */
+type ExecutableTool = {
+  name: string;
+  execute?: (params: Record<string, unknown>, config: Config, context: unknown) => unknown;
+};
+export const toolsForTest: ExecutableTool[] = [];
+
 export default defineToolPlugin({
   id: "clawvault",
   name: "ClawVault",
   description:
     "Persistent SQLite + FTS5 memory for OpenClaw. Stores conversation-derived memories in a local database (default ~/.openclaw/memory/clawvault.db) that persists across sessions and is retained until you remove it — nothing is transmitted off-machine. Provides relevance-ranked search, a duplicate guard, topic consolidation, linked memories (a knowledge graph), and a verified-claim guard that keeps unproven facts out of trusted memory. See the README Privacy section.",
   configSchema: ConfigSchema,
-  tools: (tool) => [
+  tools: (tool) => {
+    const built = [
     tool({
       name: "clawvault_save",
       label: "ClawVault Save",
@@ -668,5 +680,8 @@ export default defineToolPlugin({
         };
       },
     }),
-  ],
+    ];
+    toolsForTest.push(...(built as unknown as ExecutableTool[]));
+    return built;
+  },
 });

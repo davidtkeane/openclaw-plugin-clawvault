@@ -168,6 +168,32 @@ npm test                  # vitest
 
 The plugin is a single `defineToolPlugin` in `src/index.ts` — the whole thing is one readable file.
 
+## 🧪 Testing
+
+Two layers — see [TESTING.md](./TESTING.md) for the full guide.
+
+**Layer A — plugin mechanics** (deterministic, no model, no network). Drives every tool
+against a throwaway SQLite DB and asserts dedup, the verified-claim guard, consolidation,
+and the relation graph. This is the regression net — run it anywhere:
+
+```bash
+npm test        # vitest: src/*.test.ts
+```
+
+**Layer B — model hallucination / honesty eval** (needs an OpenAI-compatible endpoint such
+as [exo](https://github.com/exo-explore/exo) with a model loaded). Sends trap questions
+(nonexistent commands, flags, places, endpoints; a from-memory hash) and scores whether the
+model **declines** (good) or **fabricates** (bad) — running each **bare** vs **doctrine-primed**
+so you can measure the doctrine's effect and compare models:
+
+```bash
+node scripts/eval.mjs --model <model-id> --endpoint http://127.0.0.1:52415 --out report.json
+```
+
+Verdicts are heuristic (`PASS` / `FAIL` / `REVIEW`); the report keeps every response for review.
+Example run (`Qwen3-Coder-Next-4bit`): honesty **80% bare → 100% doctrine-primed** — the
+verify-before-answer prompt measurably reduced fabrication.
+
 ## 🙏 Credits & inspiration
 
 ClawVault borrows ideas from these open-source OpenClaw projects — credited here in the spirit of
